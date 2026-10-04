@@ -1,0 +1,144 @@
+environment:
+  name: "Producción"
+  description: "Entorno de producción con despliegues inmutables y políticas de versionamiento estrictas"
+  active: true
+
+# Configuración de la API gateway para producción
+gateway:
+  baseUrl: "https://gateway.pragma.com.co"
+  timeout: 15000
+  retryAttempts: 2
+  retryDelay: 500
+
+# Endpoints de la API versionados para producción
+api:
+  v1:
+    basePath: "/v1"
+    url: "https://gateway.pragma.com.co/v1"
+    description: "Versión 1 de la API - Legacy (solo lectura)"
+    status: "deprecated"
+    sunsetDate: "2025-06-30"
+    deprecationNotice: "V1 será descontinuada el 30 de junio de 2025. Migrar a v2"
+    readOnly: true
+    
+  v2:
+    basePath: "/v2"
+    url: "https://gateway.pragma.com.co/v2"
+    description: "Versión 2 de la API - Producción estable"
+    status: "active"
+    readOnly: false
+    
+  v3:
+    basePath: "/v3"
+    url: "https://gateway.pragma.com.co/v3"
+    description: "Versión 3 de la API - Canary"
+    status: "beta"
+    readOnly: false
+    trafficPercentage: 10
+
+# Sistema de versionamiento basado en headers
+versioning:
+  strategy: "header"
+  headerName: "Accept"
+  headerPattern: "application/vnd.pragma.{version}+json"
+  defaultVersion: "v2"
+  supportedVersions:
+    - "v1"
+    - "v2"
+    - "v3"
+  fallbackBehavior: "return_406_not_acceptable"
+  strictMode: true
+
+# Configuración de rutas para cada versión en producción
+routing:
+  v1:
+    backend: "https://backend-v1.pragma.com.co"
+    policies:
+      - "rate-limit-basic-prod"
+      - "auth-apikey-prod"
+      - "readonly-enforcer"
+    
+  v2:
+    backend: "https://backend-v2.pragma.com.co"
+    policies:
+      - "rate-limit-standard-prod"
+      - "auth-oauth2-prod"
+      - "validation-v2-prod"
+      - "audit-logging"
+    
+  v3:
+    backend: "https://backend-v3-canary.pragma.com.co"
+    policies:
+      - "rate-limit-extended-prod"
+      - "auth-oauth2-prod"
+      - "validation-v3-prod"
+      - "feature-flags-prod"
+      - "canary-routing"
+      - "metrics-collector"
+
+# Credenciales de producción (simuladas - en entorno real usar secrets manager)
+credentials:
+  apiKey: "prod-api-key-pragma-secure-2025"
+  oauth2:
+    clientId: "prod-client-id-pragma"
+    clientSecret: "${OAUTH_CLIENT_SECRET}"
+    tokenUrl: "https://auth.pragma.com.co/oauth/token"
+    scopes:
+      - "read:v2"
+      - "write:v2"
+      - "read:v3"
+      - "write:v3"
+
+# Configuración de rate limiting estricta por versión
+rateLimiting:
+  v1:
+    requestsPerMinute: 30
+    burst: 5
+    
+  v2:
+    requestsPerMinute: 1000
+    burst: 100
+    
+  v3:
+    requestsPerMinute: 100
+    burst: 15
+
+# Políticas de versionamiento estrictas para producción
+versioningPolicies:
+  deprecation:
+    warnAfter: "2025-03-01"
+    blockAfter: "2025-06-30"
+    migrationGuideUrl: "https://docs.pragma.com.co/migration/v1-to-v2"
+    supportContact: "soporte@pragma.com.co"
+    
+  backwardCompatibility:
+    v1ToV2:
+      breakingChanges: ["response_format", "field_renamed", "status_codes"]
+      migrationRequired: true
+      migrationDeadline: "2025-06-30"
+    v2ToV3:
+      breakingChanges: []
+      migrationRequired: false
+
+# Configuración de logging en producción
+logging:
+  level: "info"
+  includeHeaders: true
+  includeBody: false
+  maskSensitiveData: true
+  auditEnabled: true
+
+# Configuración de circuit breaker para producción
+circuitBreaker:
+  enabled: true
+  failureThreshold: 3
+  timeout: 10000
+  resetTimeout: 60000
+
+# Configuración de despliegues inmutables
+immutableDeployment:
+  enabled: true
+  versionTagRequired: true
+  rollbackEnabled: true
+  blueGreenDeployment: true
+  canaryPercentage: 10

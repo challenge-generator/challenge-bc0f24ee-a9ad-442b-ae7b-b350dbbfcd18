@@ -1,0 +1,550 @@
+{
+  "info": {
+    "name": "API Versioning Contract Tests",
+    "description": "Colección de pruebas para validar el contrato de versionamiento de APIs y escenarios de conflicto. Esta colección verifica que el versionamiento mediante headers Accept funciona correctamente, que las políticas de deprecación se aplican, y que los escenarios de conflicto entre versiones se manejan apropiadamente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "{{baseUrl}}",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "{{apiKey}}",
+      "type": "string"
+    },
+    {
+      "key": "oauthToken",
+      "value": "{{oauthToken}}",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "javascript",
+        "exec": [
+          "// Pre-request script para configurar headers de versionamiento",
+          "if (!pm.variables.get('oauthToken')) {",
+          "    pm.variables.set('oauthToken', 'placeholder-token');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "javascript",
+        "exec": [
+          "// Tests comunes para todas las requests",
+          "pm.test('Response time is acceptable', function() {",
+          "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Versionamiento mediante Header Accept",
+      "item": [
+        {
+          "name": "Request a v1 con header Accept válido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe responder con formato v1', function() {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/vnd.pragma.v1+json');",
+                  "});",
+                  "pm.test('Debe incluir header de versión en response', function() {",
+                  "    pm.expect(pm.response.headers.has('X-API-Version')).to.be.true;",
+                  "});",
+                  "pm.test('Status code debe ser 200', function() {",
+                  "    pm.expect(pm.response.status).to.equal('OK');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v1+json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{oauthToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "resources"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request a v2 con header Accept válido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe responder con formato v2', function() {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/vnd.pragma.v2+json');",
+                  "});",
+                  "pm.test('Debe incluir versión en header X-API-Version', function() {",
+                  "    pm.expect(pm.response.headers.get('X-API-Version')).to.equal('v2');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v2+json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{oauthToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v2/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v2", "resources"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request con versión inexistente - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe retornar 404 para versión inexistente', function() {",
+                  "    pm.expect(pm.response.status).to.equal('Not Found');",
+                  "});",
+                  "pm.test('Debe incluir mensaje de error claro', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v99+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v99/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v99", "resources"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Políticas de Deprecación",
+      "item": [
+        {
+          "name": "Request a versión deprecated debe retornar warning",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe incluir header deprecation warning', function() {",
+                  "    pm.expect(pm.response.headers.has('Deprecation')).to.be.true;",
+                  "});",
+                  "pm.test('Debe incluir link a documentación de migración', function() {",
+                  "    var linkHeader = pm.response.headers.get('Link');",
+                  "    pm.expect(linkHeader).to.include('migration');",
+                  "});",
+                  "pm.test('Status code sigue siendo 200', function() {",
+                  "    pm.expect(pm.response.status).to.equal('OK');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v1+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "resources"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request después de fecha de sunset debe retornar 410",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe retornar 410 Gone para versión eliminada', function() {",
+                  "    pm.expect(pm.response.status).to.equal('Gone');",
+                  "});",
+                  "pm.test('Debe incluir información de migración', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.migrationGuide).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v0+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v0/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v0", "resources"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Escenarios de Conflicto de Versionamiento",
+      "item": [
+        {
+          "name": "Conflicto: Path version vs Header Accept",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe preferir header Accept sobre path', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.resolvedVersion).to.equal('v2');",
+                  "});",
+                  "pm.test('Debe incluir warning sobre conflicto', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.warnings).to.include('version_conflict');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v2+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "resources"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Conflicto: Múltiples versiones en Accept header",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe retornar 400 para Accept header inválido', function() {",
+                  "    pm.expect(pm.response.status).to.equal('Bad Request');",
+                  "});",
+                  "pm.test('Debe explicar el error de versión', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error).to.include('version');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v1+json, application/vnd.pragma.v2+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v2/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v2", "resources"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Autenticación y Versionamiento",
+      "item": [
+        {
+          "name": "Request sin autenticación debe retornar 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe retornar 401 para request no autenticado', function() {",
+                  "    pm.expect(pm.response.status).to.equal('Unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v2+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v2/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v2", "resources"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request con scope incorrecto para versión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe retornar 403 para scope insuficiente', function() {",
+                  "    pm.expect(pm.response.status).to.equal('Forbidden');",
+                  "});",
+                  "pm.test('Debe indicar qué scope falta', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.requiredScope).to.equal('write:v3');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v3+json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{oauthToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v3/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v3", "resources"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"test\"}"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rate Limiting por Versión",
+      "item": [
+        {
+          "name": "Exceder rate limit debe retornar 429",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('Debe retornar 429 cuando se excede el límite', function() {",
+                  "    pm.expect(pm.response.status).to.equal('Too Many Requests');",
+                  "});",
+                  "pm.test('Debe incluir header Retry-After', function() {",
+                  "    pm.expect(pm.response.headers.has('Retry-After')).to.be.true;",
+                  "});",
+                  "pm.test('Debe incluir información de rate limit', function() {",
+                  "    pm.expect(pm.response.headers.has('X-RateLimit-Remaining')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v1+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/resources?simulate_rate_limit=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "resources"],
+              "query": [
+                {
+                  "key": "simulate_rate_limit",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contrato de Respuesta por Versión",
+      "item": [
+        {
+          "name": "v1 debe tener estructura de respuesta específica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('v1 debe tener campo legacyId', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data[0]).to.have.property('legacyId');",
+                  "});",
+                  "pm.test('v1 no debe tener campo metadata', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data[0]).to.not.have.property('metadata');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v1+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "resources"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "v2 debe tener estructura de respuesta con metadata",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "javascript",
+                "exec": [
+                  "pm.test('v2 debe tener campo id y metadata', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data[0]).to.have.property('id');",
+                  "    pm.expect(jsonData.data[0]).to.have.property('metadata');",
+                  "});",
+                  "pm.test('v2 debe incluir timestamp de versión', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data[0].metadata).to.have.property('version');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.pragma.v2+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v2/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["v2", "resources"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

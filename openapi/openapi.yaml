@@ -1,0 +1,554 @@
+openapi: 3.1.0
+info:
+  title: API Versioning Gateway
+  description: |-
+    Contrato de API para gestión de versionamiento y manejo de conflictos en despliegues.
+    Soporta múltiples versiones activas mediante routing por path y headers.
+  version: 1.0.0
+  contact:
+    name: Pragma S.A.
+    email: arquitectura@pragma.com.co
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.example.com
+    description: Servidor de producción
+    variables:
+      version:
+        default: v1
+        enum:
+          - v1
+          - v2
+  - url: https://staging-api.example.com
+    description: Servidor de staging
+  - url: http://localhost:8080
+    description: Servidor de desarrollo
+tags:
+  - name: versionamiento
+    description: Endpoints relacionados con el versionamiento de API
+  - name: conflictos
+    description: Gestión de conflictos en despliegues
+  - name: ramas
+    description: Operaciones sobre ramas de despliegue
+paths:
+  /v1/repositorios:
+    get:
+      tags:
+        - versionamiento
+      summary: Listar repositorios disponibles
+      description: Retorna la lista de repositorios configurados en el sistema
+      operationId: listRepositorios
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Lista de repositorios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoriosResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - versionamiento
+      summary: Crear nuevo repositorio
+      description: Registra un nuevo repositorio en el sistema de control de versiones
+      operationId: createRepositorio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepositorioInput'
+      responses:
+        '201':
+          description: Repositorio creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositorioOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/repositorios/{repoId}/ramas:
+    get:
+      tags:
+        - ramas
+      summary: Listar ramas de un repositorio
+      description: Obtiene todas las ramas existentes en el repositorio especificado
+      operationId: listBranches
+      parameters:
+        - name: repoId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          schema:
+            type: string
+            enum:
+              - feature
+              - hotfix
+              - release
+              - main
+      responses:
+        '200':
+          description: Lista de ramas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RamasResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/ramas:
+    post:
+      tags:
+        - ramas
+      summary: Crear nueva rama
+      description: Crea una nueva rama en el repositorio especificado
+      operationId: createBranch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RamaInput'
+      responses:
+        '201':
+          description: Rama creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RamaOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/conflictos:
+    get:
+      tags:
+        - conflictos
+      summary: Listar conflictos activos
+      description: Retorna los conflictos de merge pendientes de resolución
+      operationId: listConflicts
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - resolved
+              - all
+            default: pending
+      responses:
+        '200':
+          description: Lista de conflictos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictosResponse'
+  /v1/conflictos/{conflictoId}/resolver:
+    post:
+      tags:
+        - conflictos
+      summary: Resolver conflicto de merge
+      description: Aplica una estrategia de resolución al conflicto especificado
+      operationId: resolveConflict
+      parameters:
+        - name: conflictoId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolucionInput'
+      responses:
+        '200':
+          description: Conflicto resuelto exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v2/repositorios:
+    get:
+      tags:
+        - versionamiento
+      summary: Listar repositorios v2
+      description: Versión mejorada con filtros avanzados y paginación optimizada
+      operationId: listRepositoriosV2
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum:
+              - nombre
+              - fecha_creacion
+              - ultima_actualizacion
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+              default: asc
+      responses:
+        '200':
+          description: Lista de repositorios v2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoriosResponseV2'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  schemas:
+    RepositorioInput:
+      type: object
+      required:
+        - nombre
+        - tipo
+        - urlRemoto
+      properties:
+        nombre:
+          type: string
+          description: Nombre único del repositorio
+          example: mi-proyecto
+        tipo:
+          type: string
+          enum:
+            - git
+            - svn
+          description: Tipo de sistema de control de versiones
+          example: git
+        urlRemoto:
+          type: string
+          format: uri
+          description: URL del repositorio remoto
+          example: https://github.com/usuario/mi-proyecto.git
+        descripcion:
+          type: string
+          description: Descripción opcional del repositorio
+          example: Repositorio principal del proyecto
+        ramaDefault:
+          type: string
+          default: main
+          description: Rama principal del repositorio
+          example: main
+    RepositorioOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del repositorio
+          example: 550e8400-e29b-41d4-a716-446655440000
+        nombre:
+          type: string
+        tipo:
+          type: string
+        urlRemoto:
+          type: string
+        descripcion:
+          type: string
+        ramaDefault:
+          type: string
+        fechaCreacion:
+          type: string
+          format: date-time
+        ultimaActualizacion:
+          type: string
+          format: date-time
+    RepositoriosResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepositorioOutput'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    RepositoriosResponseV2:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepositorioOutput'
+        meta:
+          $ref: '#/components/schemas/PaginationMetaV2'
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+    PaginationMetaV2:
+      allOf:
+        - $ref: '#/components/schemas/PaginationMeta'
+        - type: object
+          properties:
+            sortBy:
+              type: string
+            order:
+              type: string
+            hasMore:
+              type: boolean
+    RamaInput:
+      type: object
+      required:
+        - nombre
+        - repositorioId
+        - tipo
+      properties:
+        nombre:
+          type: string
+          description: Nombre de la rama
+          example: feature/nueva-funcionalidad
+        repositorioId:
+          type: string
+          format: uuid
+          description: ID del repositorio donde se creará la rama
+        tipo:
+          type: string
+          enum:
+            - feature
+            - hotfix
+            - release
+            - main
+          description: Tipo de rama según estrategia de despliegue
+          example: feature
+        ramaBase:
+          type: string
+          description: Rama desde la cual se crea la nueva rama
+          example: main
+    RamaOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        tipo:
+          type: string
+        ramaBase:
+          type: string
+        repositorioId:
+          type: string
+        fechaCreacion:
+          type: string
+          format: date-time
+        ultimoCommit:
+          type: string
+    RamasResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RamaOutput'
+        total:
+          type: integer
+    ConflictoInput:
+      type: object
+      properties:
+        archivo:
+          type: string
+        ramaOrigen:
+          type: string
+        ramaDestino:
+          type: string
+        tipoConflicto:
+          type: string
+          enum:
+            - contenido
+            - renombrado
+            - eliminado
+    ConflictoOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        archivo:
+          type: string
+        ramaOrigen:
+          type: string
+        ramaDestino:
+          type: string
+        tipoConflicto:
+          type: string
+        estado:
+          type: string
+          enum:
+            - pending
+            - resolved
+            - manual
+        fechaDeteccion:
+          type: string
+          format: date-time
+    ConflictosResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConflictoOutput'
+        total:
+          type: integer
+        pendientes:
+          type: integer
+    ResolucionInput:
+      type: object
+      required:
+        - estrategia
+      properties:
+        estrategia:
+          type: string
+          enum:
+            - ours
+            - theirs
+            - manual
+            - merge
+          description: Estrategia de resolución del conflicto
+          example: manual
+        contenido:
+          type: string
+          description: Contenido resuelto (requerido si estrategia es manual)
+        comentario:
+          type: string
+          description: Comentario sobre la resolución
+    ResolucionOutput:
+      type: object
+      properties:
+        conflictoId:
+          type: string
+        estado:
+          type: string
+        estrategiaAplicada:
+          type: string
+        resueltoPor:
+          type: string
+        fechaResolucion:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      properties:
+        codigo:
+          type: string
+        mensaje:
+          type: string
+        detalles:
+          type: array
+          items:
+            type: object
+            properties:
+              campo:
+                type: string
+              mensaje:
+                type: string
+    ErrorDetail:
+      type: object
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            codigo: BAD_REQUEST
+            mensaje: La solicitud contiene parámetros inválidos
+            detalles:
+              - campo: nombre
+                mensaje: El campo nombre no puede estar vacío
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            codigo: NOT_FOUND
+            mensaje: El recurso solicitado no existe
+    Conflict:
+      description: Conflicto de estado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            codigo: CONFLICT
+            mensaje: El recurso ya existe o hay un conflicto con el estado actual
+    InternalServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            codigo: INTERNAL_ERROR
+            mensaje: Ocurrió un error interno al procesar la solicitud
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+security:
+  - bearerAuth: []
+  - apiKeyHeader: []

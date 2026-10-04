@@ -1,0 +1,129 @@
+environment:
+  name: "Desarrollo"
+  description: "Entorno de desarrollo para pruebas de versionamiento y validación de políticas de gateway"
+  active: true
+
+# Configuración de la API gateway para desarrollo
+gateway:
+  baseUrl: "https://dev-gateway.pragma.com.co"
+  timeout: 30000
+  retryAttempts: 3
+  retryDelay: 1000
+
+# Endpoints de la API versionados para desarrollo
+api:
+  v1:
+    basePath: "/v1"
+    url: "https://dev-gateway.pragma.com.co/v1"
+    description: "Versión 1 de la API - Legacy"
+    status: "deprecated"
+    sunsetDate: "2025-12-31"
+    deprecationNotice: "Usar v2 antes del 31 de diciembre de 2025"
+    
+  v2:
+    basePath: "/v2"
+    url: "https://dev-gateway.pragma.com.co/v2"
+    description: "Versión 2 de la API - Actual"
+    status: "active"
+    
+  v3:
+    basePath: "/v3"
+    url: "https://dev-gateway.pragma.com.co/v3"
+    description: "Versión 3 de la API - Beta"
+    status: "beta"
+    featureFlags:
+      - "new_auth_flow"
+      - "enhanced_validation"
+
+# Sistema de versionamiento basado en headers
+versioning:
+  strategy: "header"
+  headerName: "Accept"
+  headerPattern: "application/vnd.pragma.{version}+json"
+  defaultVersion: "v2"
+  supportedVersions:
+    - "v1"
+    - "v2"
+    - "v3"
+  fallbackBehavior: "redirect_to_default"
+
+# Configuración de rutas para cada versión
+routing:
+  v1:
+    backend: "https://dev-backend-v1.pragma.com.co"
+    policies:
+      - "rate-limit-basic"
+      - "auth-apikey"
+    
+  v2:
+    backend: "https://dev-backend-v2.pragma.com.co"
+    policies:
+      - "rate-limit-standard"
+      - "auth-oauth2"
+      - "validation-v2"
+    
+  v3:
+    backend: "https://dev-backend-v3.pragma.com.co"
+    policies:
+      - "rate-limit-extended"
+      - "auth-oauth2"
+      - "validation-v3"
+      - "feature-flags"
+
+# Credenciales para desarrollo (NO usar en producción)
+credentials:
+  apiKey: "dev-api-key-pragma-2025-test"
+  oauth2:
+    clientId: "dev-client-id-pragma"
+    clientSecret: "dev-secret-pragma-test"
+    tokenUrl: "https://dev-auth.pragma.com.co/oauth/token"
+    scopes:
+      - "read:v1"
+      - "write:v1"
+      - "read:v2"
+      - "write:v2"
+      - "read:v3"
+      - "write:v3"
+
+# Configuración de rate limiting por versión
+rateLimiting:
+  v1:
+    requestsPerMinute: 60
+    burst: 10
+    
+  v2:
+    requestsPerMinute: 120
+    burst: 20
+    
+  v3:
+    requestsPerMinute: 200
+    burst: 30
+
+# Políticas de versionamiento específicas
+versioningPolicies:
+  deprecation:
+    warnAfter: "2025-06-01"
+    blockAfter: "2025-12-31"
+    migrationGuideUrl: "https://docs.pragma.com.co/migration/v1-to-v2"
+    
+  backwardCompatibility:
+    v1ToV2:
+      breakingChanges: ["response_format", "field_renamed"]
+      migrationRequired: true
+    v2ToV3:
+      breakingChanges: []
+      migrationRequired: false
+
+# Configuración de logs para desarrollo
+logging:
+  level: "debug"
+  includeHeaders: true
+  includeBody: true
+  maskSensitiveData: false
+
+# Configuración de circuit breaker
+circuitBreaker:
+  enabled: true
+  failureThreshold: 5
+  timeout: 60000
+  resetTimeout: 30000

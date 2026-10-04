@@ -1,0 +1,276 @@
+version: 1.0.0
+type: gateway-policy
+name: Resolución de Conflictos de Merge
+description: |-
+  Política para manejar conflictos de merge en despliegues de ramas.
+  Define estrategias de resolución automática, reglas de fallback y manejo de errores.
+  Implementa detección temprana y notificación de conflictos potenciales.
+
+metadata:
+  autor: Equipo de Arquitectura Pragma
+  fechaCreacion: '2025-01-15'
+  ultimaActualizacion: '2025-01-15'
+  tags:
+    - merge
+    - conflictos
+    - despliegues
+    - git
+
+configuracion:
+  estrategiasResolucion:
+    - nombre: ours
+      descripcion: Preferir cambios de la rama actual
+      automatica: true
+      aplicableA:
+        - conflicto.contenido.simple
+        - conflicto.metadata
+    - nombre: theirs
+      descripcion: Preferir cambios de la rama entrante
+      automatica: true
+      aplicableA:
+        - conflicto.contenido.simple
+        - conflicto.metadata
+    - nombre: manual
+      descripcion: Requiere intervención manual
+      automatica: false
+      aplicableA:
+        - conflicto.contenido.complejo
+        - conflicto.binario
+        - conflicto.renombrado
+    - nombre: merge
+      descripcion: Intentar merge automático con marcadores
+      automatica: true
+      aplicableA:
+        - conflicto.contenido
+
+  reglasDeteccion:
+    - nombre: Detectar conflictos potenciales
+      tipo: pre-merge
+      condicion:
+        tipo: rama
+        patrones:
+          - feature/*
+          - hotfix/*
+          - release/*
+      accion:
+        tipo: analizar
+        incluirHistorico: true
+        profundidadMaxima: 10
+      notificar:
+        canales:
+          - email
+          - slack
+        umbral: 5
+
+    - nombre: Validar compatibilidad de schemas
+      tipo: pre-merge
+      condicion:
+        tipo: archivos
+        extensiones:
+          - .yaml
+          - .json
+          - .proto
+      accion:
+        tipo: validarSchema
+        strictMode: true
+      generarReporte: true
+
+    - nombre: Verificar cambios en contratos
+      tipo: pre-merge
+      condicion:
+        tipo: path
+        patrones:
+          - '**/openapi.yaml'
+          - '**/schemas/**'
+          - '**/contracts/**'
+      accion:
+        tipo: validarContrato
+        backwardCompatible: true
+      notificar:
+        canales:
+          - email
+        roles:
+          - architect
+          - tech-lead
+
+  reglasFallback:
+    - nombre: Fallback por timeout
+      condicion:
+        tipo: timeout
+        limite: 300
+      accion:
+        tipo: crearRamaConflicto
+        prefijo: conflict/
+        notificar: true
+      registro:
+        tipo: incident
+        severidad: high
+
+    - nombre: Fallback por conflictos binarios
+      condicion:
+        tipo: tipoConflicto
+        valor: binario
+      accion:
+        tipo: rechazar
+        mensaje: 'Conflicto binario requiere resolución manual'
+        crearTicket: true
+      registro:
+        tipo: incident
+        severidad: critical
+
+    - nombre: Fallback por múltiples conflictos
+      condicion:
+        tipo: cantidad
+        limite: 10
+      accion:
+        tipo: crearRamaConflicto
+        prefijo: conflict/manual-
+        asignar: auto
+        notificar: true
+      registro:
+        tipo: incident
+        severidad: medium
+
+  manejoErrores:
+    erroresRecuperables:
+      - nombre: Timeout de red
+        codigo: NET_TIMEOUT
+        accion: reintentar
+        reintentos: 3
+        intervalo: 5000
+
+      - nombre: Repo no accesible
+        codigo: REPO_ACCESS_DENIED
+        accion: notificar
+        canales:
+          - email
+          - slack
+
+    erroresNoRecuperables:
+      - nombre: Corrupción de repositorio
+        codigo: REPO_CORRUPTED
+        accion: bloquear
+        notificar: true
+        severidad: critical
+
+      - nombre: Permisos insuficientes
+        codigo: INSUFFICIENT_PERMISSIONS
+        accion: rechazar
+        mensaje: 'No tienes permisos para realizar esta operación'
+
+  notificaciones:
+    canales:
+      - nombre: email
+        tipo: smtp
+        configuracion:
+          from: git-conflicts@pragma.com.co
+          to:
+            - team-leads@pragma.com.co
+          subject: '[Conflicto] Merge conflict detected in {repo}/{branch}'
+          template: conflict-notification.html
+
+      - nombre: slack
+        tipo: webhook
+        configuracion:
+          url: https://hooks.slack.com/services/xxx
+          channel: '#git-conflicts'
+          username: Git Conflict Bot
+          template: slack-conflict-message.json
+
+      - nombre: jira
+        tipo: api
+        configuracion:
+          url: https://pragma.atlassian.net/rest/api/3
+          project: DEVOPS
+          tipoIssue: Bug
+          prioridad: High
+
+    reglasNotificacion:
+      - evento: conflicto.detectado
+        canales:
+          - email
+          - slack
+        delay: 0
+        filtros:
+          - tipo: severidad
+            valores:
+              - high
+              - critical
+
+      - evento: conflicto.resuelto
+        canales:
+          - slack
+        delay: 0
+        filtros: []
+
+      - evento: conflicto.manual.required
+        canales:
+          - email
+          - jira
+          - slack
+        delay: 0
+        filtros: []
+
+  colaConflictos:
+    nombre: conflict-resolution-queue
+    tipo: fifo
+    maxSize: 1000
+    retention: 7d
+    prioridadPorTipo:
+      critical: 1
+      high: 2
+      medium: 3
+      low: 4
+    dlq: conflict-resolution-dlq
+    politicaReintento:
+      maxReintentos: 3
+      backoff: exponential
+      inicial: 1000
+      max: 30000
+
+  logging:
+    enabled: true
+    nivel: debug
+    incluirTraza: true
+    camposLog:
+      - conflict.id
+      - conflict.type
+      - conflict.files
+      - conflict.strategy.applied
+      - conflict.resolution.time
+      - merge.request.id
+      - merge.request.author
+      - merge.request.branches
+      - error.code
+      - error.message
+
+  metrics:
+    enabled: true
+    metricas:
+      - nombre: merge_conflicts_total
+        tipo: counter
+        etiquetas:
+          - repo
+          - branch
+          - conflict.type
+      - nombre: merge_conflicts_resolved
+        tipo: counter
+        etiquetas:
+          - repo
+          - strategy
+          - auto.manual
+      - nombre: merge_conflicts_resolution_time
+        tipo: histogram
+        etiquetas:
+          - repo
+          - strategy
+      - nombre: merge_conflicts_failed
+        tipo: counter
+        etiquetas:
+          - repo
+          - failure.reason
+      - nombre: dlq_messages_total
+        tipo: counter
+        etiquetas:
+          - queue
+          - reason

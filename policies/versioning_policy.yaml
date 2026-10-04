@@ -1,0 +1,167 @@
+version: 1.0.0
+type: gateway-policy
+name: Versionamiento de API
+description: |-
+  Política de gateway para manejar múltiples versiones de API mediante routing basado en headers y paths.
+  Implementa versionamiento por URL path y por header Accept para maximizar flexibilidad.
+  Incluye reglas de deprecación y migración entre versiones.
+
+metadata:
+  autor: Equipo de Arquitectura Pragma
+  fechaCreacion: '2025-01-15'
+  ultimaActualizacion: '2025-01-15'
+  tags:
+    - versionamiento
+    - routing
+    - api-gateway
+    - deprecacion
+
+configuracion:
+  versionesSoportadas:
+    - version: v1
+      estado: deprecated
+      fechaDeprecacion: '2025-06-01'
+      fechaRetiro: '2025-12-01'
+      rutaBase: /v1
+      headerVersion: application/vnd.pragma.v1+json
+    - version: v2
+      estado: active
+      rutaBase: /v2
+      headerVersion: application/vnd.pragma.v2+json
+    - version: v3
+      estado: beta
+      rutaBase: /v3
+      headerVersion: application/vnd.pragma.v3+json
+      requiereHeader: false
+
+  estrategiaVersionamiento: hybrid
+  permitirVersionPorPath: true
+  permitirVersionPorHeader: true
+  headerDefault: Accept
+  versionHeaderName: X-API-Version
+
+  reglasRouting:
+    - nombre: Routing por Path
+      prioridad: 1
+      condicion:
+        tipo: path
+        patron: '^/v[0-9]+/'
+      accion:
+        tipo: route
+        destino: backend-{version}
+      metadata:
+        tipoVersionamiento: path
+
+    - nombre: Routing por Header Accept
+      prioridad: 2
+      condicion:
+        tipo: header
+        nombre: Accept
+        valor: 'application/vnd.pragma.v*+json'
+      accion:
+        tipo: route
+        destino: backend-{version}
+      metadata:
+        tipoVersionamiento: header
+
+    - nombre: Version Default
+      prioridad: 10
+      condicion:
+        tipo: always
+      accion:
+        tipo: redirect
+        destino: /v2/
+        codigo: 302
+      metadata:
+        tipoVersionamiento: default
+
+  reglasDeprecacion:
+    - version: v1
+      acciones:
+        - tipo: agregarHeader
+          nombre: Deprecation
+          valor: 'true'
+        - tipo: agregarHeader
+          nombre: Sunset
+          valor: 'Sat, 01 Dec 2025 00:00:00 GMT'
+        - tipo: agregarHeader
+          nombre: Link
+          valor: '</v2/>; rel="successor-version"'
+        - tipo: log
+          nivel: warning
+          mensaje: 'Solicitud a versión deprecated: v1'
+
+  politicasMigracion:
+    - versionOrigen: v1
+      versionDestino: v2
+      tipo: gradual
+      porcentaje: 10
+      criterios:
+        - tipo: header
+          nombre: X-Migration-Cohort
+          valores:
+            - A
+            - B
+      acciones:
+        - tipo: transformarRequest
+          mapeos:
+            - campo: query.pageSize
+              origen: query.limit
+              default: 20
+        - tipo: transformarResponse
+          mapeos:
+            - campo: meta.totalPages
+              origen: meta.total
+              formula: 'Math.ceil(total / pageSize)'
+
+  respuestasError:
+    versionNoSoportada:
+      codigo: 400
+      mensaje: 'Versión de API no soportada. Versiones disponibles: v1, v2, v3'
+      detalles:
+        - campo: version
+          mensaje: 'La versión solicitada no existe o está retire'
+    versionDeprecated:
+      codigo: 299
+      mensaje: 'Esta versión de API está deprecada y será retirada'
+      headers:
+        - Deprecation
+        - Sunset
+        - Link
+    versionInvalidHeader:
+      codigo: 400
+      mensaje: 'Header de versión inválido'
+      detalles:
+        - campo: Accept
+          mensaje: 'El formato del header debe ser application/vnd.pragma.v{version}+json'
+
+  logging:
+    enabled: true
+    nivel: info
+    incluirHeaders: true
+    incluirCuerpo: false
+    camposLog:
+      - api.version
+      - api.versioning.strategy
+      - api.versioning.routing.rule
+      - api.deprecation.active
+      - backend.target.version
+
+  metrics:
+    enabled: true
+    metricas:
+      - nombre: api_version_requests
+        tipo: counter
+        etiquetas:
+          - version
+          - routing.strategy
+          - status
+      - nombre: api_version_deprecation_warnings
+        tipo: counter
+        etiquetas:
+          - version
+      - nombre: api_version_migration_count
+        tipo: counter
+        etiquetas:
+          - from.version
+          - to.version

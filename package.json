@@ -1,0 +1,42 @@
+{
+  "name": "api-versioning-gateway",
+  "version": "1.0.0",
+  "description": "Proyecto de API First con políticas de gateway para versionamiento y manejo de conflictos",
+  "main": "openapi/openapi.yaml",
+  "scripts": {
+    "lint": "npx @redocly/cli lint openapi/openapi.yaml",
+    "validate": "npm run lint",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "openapi",
+    "api-gateway",
+    "versioning",
+    "git",
+    "conflict-resolution"
+  ],
+  "author": "Pragma S.A.",
+  "license": "MIT",
+  "devDependencies": {
+    "@redocly/cli": "1.12.0"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pragma/api-versioning-gateway.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pragma/api-versioning-gateway/issues"
+  },
+  "homepage": "https://github.com/pragma/api-versioning-gateway#readme",
+  "files": [
+    "openapi/",
+    "policies/",
+    "environments/",
+    "tests/",
+    "docs/"
+  ]
+}
